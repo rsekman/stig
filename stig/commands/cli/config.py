@@ -68,3 +68,6 @@ class RateLimitCmd(base.RateLimitCmdbase,
 
 class LinkPathCmd(base.LinkPathCmd):
     provides = {'cli'}
+
+class RatioLimitCmd(base.RatioLimitCmd, mixin.make_request, mixin.select_torrents):
+    provides = {'cli'}
