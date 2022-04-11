@@ -360,9 +360,9 @@ class TrackerList(tuple):
             return utils.Timestamp.NEVER
 
     def __new__(cls, raw_torrent):
-        return super().__new__(cls,
-            (ttypes.TorrentTracker(
-                (LazyDict({  # noqa: E128
+        return super().__new__(cls, (
+            ttypes.TorrentTracker(
+                LazyDict({
                     'id'                 : (raw_torrent['id'], raw_tracker['id']),
                     'tid'                : raw_torrent['id'],
                     'tname'              : raw_torrent['name'],
@@ -385,8 +385,8 @@ class TrackerList(tuple):
                     'time-last-scrape'   : lambda: cls._last_time(raw_tracker, 'Scrape'),
                     'time-next-announce' : lambda: cls._next_time(raw_tracker, 'Announce'),
                     'time-next-scrape'   : lambda: cls._next_time(raw_tracker, 'Scrape'),
-                }))) for raw_tracker in raw_torrent['trackerStats'])
-        )
+                })) for raw_tracker in raw_torrent['trackerStats']
+        ))
 
 
 # Map abstracted keys to tuples of needed RPC field names
