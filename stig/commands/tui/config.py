@@ -77,5 +77,5 @@ class RateLimitCmd(base.RateLimitCmdbase,
 
 
 class RatioLimitCmd(base.RatioLimitCmd,
-                   mixin.make_request, mixin.select_torrents, mixin.polling_frenzy):
+                    mixin.make_request, mixin.select_torrents, mixin.polling_frenzy):
     provides = {'tui'}
