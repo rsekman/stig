@@ -13,8 +13,6 @@ import asyncio
 
 from subprocess import Popen, PIPE
 
-from . import _mixin as mixin
-from .. import CmdError, CommandMeta
 from ... import objects
 from ...completion import candidates
 from .. import CmdError, CommandMeta
