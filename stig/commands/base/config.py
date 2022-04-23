@@ -816,6 +816,8 @@ class RatioLimitCmd(metaclass=CommandMeta):
 
         response = await self.make_request(objects.srvapi.torrent.set_limit_ratio(tfilter, limit),
                                            polling_frenzy=True, quiet=quiet)
+        if not response.success:
+            raise CmdError()
 
 class LabelCmd(metaclass=CommandMeta):
     name = 'label'
