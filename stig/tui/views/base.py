@@ -340,7 +340,7 @@ class ListWidgetBase(urwid.WidgetWrap):
             cur = 0
         elif k == -1:
             # search hit TOP continuing from BOTTOM
-            cur = self.count-1
+            cur = self.count - 1
         for item in self._items_slice(cur, self.focus_position, k):
             yield (cur, item)
             cur += k

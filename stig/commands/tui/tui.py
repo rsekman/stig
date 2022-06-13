@@ -611,7 +611,7 @@ class MarkCmd(metaclass=CommandMeta):
 
 class SearchCmd(metaclass=CommandMeta):
     name = 'search'
-    provides ={'tui'}
+    provides = {'tui'}
     category = 'tui'
     description = 'Skip to the next entry in the focused tab that matches a filter'
     usage = ('skip [<OPTIONS>] [<FILTER>]',)
@@ -626,8 +626,8 @@ class SearchCmd(metaclass=CommandMeta):
         {'names': ('--previous','-p'), 'action': 'store_true',
          'description': 'Jump to previous match (call `search <PHRASE>` first)'},
     )
+
     def run(self, reverse, next, previous, FILTER):
-        k = reverse
         from ...tui.tuiobjects import tabs
         widget = tabs.focus.base_widget
         if not hasattr(widget, 'focus_match'):
