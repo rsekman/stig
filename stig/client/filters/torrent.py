@@ -202,9 +202,9 @@ class _SingleFilter(Filter):
                                           needed_keys=('trackers',),
                                           aliases=('trk',),
                                           description=_desc('... domain of the announce URL of trackers')),
-        'label'           : CmpFilterSpec(value_getter=lambda t: t['labels'],
+        'label'           : CmpFilterSpec(value_getter=lambda t: t.get('labels', []),
                                           value_matcher=lambda t, op, v:
-                                              any(op(lbl, v) for lbl in t['labels']),
+                                              any(op(lbl, v) for lbl in t.get('labels', [])),
                                           value_type=str,
                                           needed_keys=('labels',),
                                           aliases=('lbl',),
