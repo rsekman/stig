@@ -450,7 +450,7 @@ COLUMNS['tracker'] = Tracker
 
 class Labels(ColumnBase):
     header = {'left': 'Labels'}
-    width = 10
+    width = None
     min_width = 5
     needed_keys = ('labels',)
     align = 'left'
