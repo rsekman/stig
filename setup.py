@@ -43,9 +43,9 @@ setup(
 
     python_requires  = '>=3.6',
     install_requires = [
-        'urwid>=2.0',
-        'urwidtrees>=1.0.3dev0',
-        'aiohttp>=3,<4',
+        'urwid==2.*',
+        'urwidtrees==1.0.3',
+        'aiohttp==3.*',
         'async_timeout',
         'pyxdg',
         'blinker',
@@ -69,6 +69,8 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
         'Environment :: Console',
         'Operating System :: Unix',
         'Development Status :: 3 - Alpha',
