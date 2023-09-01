@@ -179,6 +179,10 @@ def _status(t):
 
     return statuses
 
+def _local_path(t):
+    from ...objects import pathtranslator
+    return str(pathtranslator.to_local(t['downloadDir']))
+
 
 def _limit_ratio_mode(t):
     # RPC values for 'seedRatioMode' field:
@@ -400,6 +404,7 @@ DEPENDENCIES = {
     'status'                       : ('status', 'percentDone', 'metadataPercentComplete', 'rateDownload',
                                       'rateUpload', 'peersConnected', 'trackerStats', 'isPrivate'),
     'path'                         : ('downloadDir',),
+    'local-path'                   : ('downloadDir',),
     'private'                      : ('isPrivate',),
     'comment'                      : ('comment',),
     'creator'                      : ('creator',),
@@ -471,6 +476,7 @@ class Torrent(base.TorrentBase):
         'peers-seeding'      : _count_seeds,
         'ratio'              : _modify_ratio,
         'limit-ratio-mode'   : _limit_ratio_mode,
+        'local-path'         : _local_path,
 
         # Transmission provides rate limits in kilobytes - we want bytes
         'limit-rate-down'    : lambda raw: None if not raw['downloadLimited'] else raw['downloadLimit'] * 1000,

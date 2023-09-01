@@ -71,7 +71,6 @@ def _status_hr(t):
 def _status_mr(t):
     return ','.join(t['status'])
 
-
 def _uploaded_hr(t):
     return '%s (%.2f %%)' % (t['size-uploaded'].with_unit, t['%uploaded'])
 
@@ -221,7 +220,7 @@ SECTIONS = (
              human_readable=_status_hr,
              machine_readable=_status_mr),
         Item('Location',
-             needed_keys=('path',),),
+             needed_keys=('local-path',)),
         Item('Available',
              needed_keys=('%available', 'size-available'),
              human_readable=_available_hr,
