@@ -462,3 +462,13 @@ class Completed(_TimeBase):
         return self.data['time-completed']
 
 COLUMNS['completed'] = Completed
+
+class Hash(ColumnBase):
+    header = {'left': 'Hash'}
+    needed_keys = {'hash'}
+    width=32
+
+    def get_value(self):
+        return self.data['hash']
+
+COLUMNS['hash'] = Hash
