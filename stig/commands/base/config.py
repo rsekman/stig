@@ -819,6 +819,15 @@ class RatioLimitCmd(metaclass=CommandMeta):
         if not response.success:
             raise CmdError()
 
+    @classmethod
+    def completion_candidates_posargs(cls, args):
+        posargs = args.posargs()
+        if posargs.curarg_index == 1:
+            cands = ['enabled', 'disabled', 'default']
+            return candidates.Candidates(cands, label='Mode')
+        else:
+            return candidates.torrent_filter(args.curarg)
+
 class LabelCmd(metaclass=CommandMeta):
     name = 'label'
     provides = set()
@@ -876,5 +885,9 @@ class LabelCmd(metaclass=CommandMeta):
     @classmethod
     def completion_candidates_posargs(cls, args):
         """Complete positional arguments"""
-        curlbl = args.curarg.split(',')[-1]
-        return candidates.labels(curlbl)
+        posargs = args.posargs()
+        if posargs.curarg_index == 1:
+            curlbl = args.curarg.split(',')[-1]
+            return candidates.labels(curlbl)
+        else:
+            return candidates.torrent_filter(args.curarg)
