@@ -824,7 +824,7 @@ class LabelCmd(metaclass=CommandMeta):
     provides = set()
     category = 'configuration'
     description = 'Manipulate torrent labels'
-    usage = ('label [<OPTIONS>] <TORRENT FILTER> <TORRENT FILTER>... <[LABEL][,LABEL...]>',)
+    usage = ('label [<OPTIONS>] <[LABEL][,LABEL...]> <TORRENT FILTER> <TORRENT FILTER>...',)
     examples = ('label iso,linux id=34',
                 'label -r iso,linux id=34',
                 'label -c id=34')
