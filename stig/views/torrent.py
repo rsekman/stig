@@ -23,6 +23,7 @@ log = make_logger(__name__)
 COLUMNS = {}
 ALIASES = {'mark'     : 'marked',
            'n'        : 'name',
+           'hash'     : 'infohash',
            'dir'      : 'path',
            'st'       : 'status',
            'err'      : 'error',
@@ -55,7 +56,7 @@ COLUMNS['marked'] = Marked
 
 class Id(ColumnBase):
     header = {'left': 'ID'}
-    width = 4
+    width = 6
     needed_keys = ('id',)
     align = 'right'
 
@@ -63,6 +64,18 @@ class Id(ColumnBase):
         return self.data['id']
 
 COLUMNS['id'] = Id
+
+
+class Infohash(ColumnBase):
+    header = {'left': 'Infohash'}
+    width = 40
+    needed_keys = ('hash',)
+    align = 'right'
+
+    def get_value(self):
+        return self.data['hash']
+
+COLUMNS['infohash'] = Infohash
 
 
 class Name(ColumnBase):
