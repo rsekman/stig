@@ -14,10 +14,16 @@ Application-wide instances that are always needed, regardless of interface
 or features
 """
 
+import asyncio
+
 from . import logging, settings
 from .client import API
 from .commands import CommandManager
 from .helpmgr import HelpManager
+
+# We rely on an event loop being created on demand. but as of Python 3.14, asyncio.get_event_loop()
+# raises RuntimeError if there is no event loop. This seems to fix the issue.
+asyncio.set_event_loop(asyncio.new_event_loop())
 
 log = logging.make_logger()
 
