@@ -1,5 +1,6 @@
 import unittest
 
+import asyncio
 import urwid
 
 from stig.tui.keymap import Key, KeyChain, KeyMap
@@ -35,6 +36,11 @@ class TestKey(unittest.TestCase):
         self.assertEqual(Key('shift-ctrl-enter'), Key('shift-Ctrl-RETURN'))
         self.assertEqual(Key('alt-space'), Key('meta  '))
         self.assertEqual(Key('alt-pgup'), Key('meta page up'))
+
+        self.assertEqual(Key('focus in'), Key('focus:in'))
+        self.assertEqual(Key('focus out'), Key('focus:out'))
+        self.assertEqual(Key('begin paste'), Key('paste:begin'))
+        self.assertEqual(Key('end paste'), Key('paste:end'))
 
     def test_compare_Key_with_str(self):
         self.assertEqual(Key('enter'), '\n')
@@ -131,8 +137,13 @@ class FakeAction():
         if self.action is not None:
             return self.action()
 
+
 class TestKeyMapped(unittest.TestCase):
     def setUp(self):
+        try:
+            _ = asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.set_event_loop(asyncio.new_event_loop())
         self.keymap = KeyMap()
 
     def mk_widget(self, subcls, *args, context=None, callback=None, **kwargs):

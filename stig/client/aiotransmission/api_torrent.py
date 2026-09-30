@@ -76,6 +76,21 @@ class _TorrentCache():
                                         tlist=tlist or '(empty)')
 
 
+# Oldest 'rpc-version-semver' that understands the 'labels' argument of 'torrent-add'
+LABELS_SEMVER = (5, 3, 0)
+
+# Oldest 'rpc-version-semver' that understands sequential downloading
+SEQUENTIAL_SEMVER = (6, 0, 0)
+SEQUENTIAL_UNSUPPORTED = ('Daemon does not support sequential download (needs Transmission 4.1.0 or newer)')
+
+
+def _sequential_msg(name, enabled, from_piece):
+    if enabled:
+        return f'{name}: Sequential download from piece #{from_piece}'
+    else:
+        return f'{name}: Non-sequential download'
+
+
 class TorrentAPI(TorrentAPIBase):
     """High-level abstraction of the Transmission RPC protocol"""
 
@@ -86,6 +101,16 @@ class TorrentAPI(TorrentAPIBase):
     def clearcache(self):
         """Remove all torrents from cache"""
         self._tcache.purge(existing_tids=())
+
+    def _daemon_supports(self, semver):
+        """
+        Whether the daemon's RPC version is at least `semver`
+
+        Daemons that don't report 'rpc-version-semver' are older than 5.3.0,
+        which is where it was introduced.
+        """
+        rpcversion = self.rpc.rpcversion_semver
+        return rpcversion is not None and rpcversion >= semver
 
     @staticmethod
     async def _request(method, *args, **kwargs):
@@ -133,7 +158,7 @@ class TorrentAPI(TorrentAPIBase):
                 return Response(success=True, path=SmartCmpPath(abs_path))
         return Response(success=True, path=SmartCmpPath(path))
 
-    async def add(self, torrent, stopped=False, path=None, labels=[]):
+    async def add(self, torrent, stopped=False, path=None, labels=[], sequential=None):
         """
         Add torrent from file, URL or hash
 
@@ -141,6 +166,8 @@ class TorrentAPI(TorrentAPIBase):
         stopped: False to start downloading immediately, True otherwise
         path:    Download directory or `None` for default directory
         labels:  List of labels
+        sequential: Piece to start sequential downloading at or `None` to let
+                    the daemon decide the piece order
 
         Return Response with the following properties:
             torrent: Torrent object with the keys 'id' and 'name' if the
@@ -153,6 +180,15 @@ class TorrentAPI(TorrentAPIBase):
         """
         torrent_str = torrent
         args = {'paused': bool(stopped), 'labels': labels}
+
+        warnings = []
+        if sequential is not None:
+            if self._daemon_supports(SEQUENTIAL_SEMVER):
+                args['sequential_download'] = True
+                args['sequential_download_from_piece'] = sequential
+            else:
+                # Adding the torrent is more important than the piece order
+                warnings.append(SEQUENTIAL_UNSUPPORTED)
 
         if path is not None:
             response = await self._abs_download_path(path)
@@ -213,15 +249,17 @@ class TorrentAPI(TorrentAPIBase):
                 info = result['torrent-added']
                 msgs = ['Added %s' % info['name']]
                 success = True
-                # Before rpc version 17 torrent-add did not take the labels
-                # argument, so we have to send a follow-up request
-                if labels and self.rpc.rpcversion < 17:
+                errors = tuple(warnings)
+                # Before RPC version 5.3.0 torrent-add did not take the
+                # labels argument, so we have to send a follow-up request.
+                if labels and not self._daemon_supports(LABELS_SEMVER):
                     response = await self.labels_add((info['id'],), labels)
                     success = response.success
                     if response.success:
                         msgs.append('Labeled %s with %s' % (info['name'], ', '.join(labels)))
                     else:
-                        errors = ('Could not label added torrents: %s' % response.errors,)
+                        errors = (*errors,
+                                  'Could not label added torrents: %s' % response.errors)
             else:
                 raise RuntimeError('Malformed response: %r' % (result,))
             torrent = Torrent({'id': info['id'], 'name': info['name']})
@@ -1163,6 +1201,84 @@ class TorrentAPI(TorrentAPIBase):
         return await self._torrent_action(self.rpc.torrent_reannounce, torrents,
                                           check=check, check_keys=('status', 'trackers',
                                                                    'time-manual-announce-allowed'))
+
+    async def set_sequential(self, torrents, enabled, from_piece=0):
+        """
+        Enable or disable sequential downloading for torrents
+
+        torrents:   See `torrents` method
+        enabled:    Whether to download pieces in order
+        from_piece: Piece to start downloading from; ignored unless `enabled`
+
+        Return Response with the following properties:
+            torrents: Tuple of Torrents with the keys 'id' and 'name'
+            success:  True if the new mode was applied to at least one torrent
+            msgs:     List of info messages
+            errors:   List of error messages
+        """
+        if not self._daemon_supports(SEQUENTIAL_SEMVER):
+            return Response(success=False, torrents=(), errors=(SEQUENTIAL_UNSUPPORTED,))
+
+        if enabled:
+            method_args = {'sequential_download': True,
+                           'sequential_download_from_piece': from_piece}
+        else:
+            # Leave the starting piece alone so the daemon remembers it
+            method_args = {'sequential_download': False}
+
+        response = await self._torrent_action(self.rpc.torrent_set, torrents,
+                                              method_args=method_args)
+        if not response.success:
+            return response
+        else:
+            msgs = list(response.msgs)
+            msgs.extend(_sequential_msg(t['name'], enabled, from_piece)
+                        for t in response.torrents)
+            return Response(success=True, torrents=response.torrents,
+                            msgs=msgs, errors=response.errors)
+
+    async def toggle_sequential(self, torrents, from_piece=0):
+        """
+        Enable sequential downloading for torrents that don't use it and vice versa
+
+        torrents:   See `torrents` method
+        from_piece: Piece to start downloading from for torrents that are
+                    switched on
+
+        Return Response with the following properties:
+            torrents: Tuple of Torrents with the keys 'id' and 'name'
+            success:  True if the new mode was applied to at least one torrent
+            msgs:     List of info messages
+            errors:   List of error messages
+        """
+        if not self._daemon_supports(SEQUENTIAL_SEMVER):
+            return Response(success=False, torrents=(), errors=(SEQUENTIAL_UNSUPPORTED,))
+
+        response = await self.torrents(torrents, keys=('id', 'name', 'sequential'))
+        if not response.success:
+            return Response(success=False, torrents=(), errors=response.errors)
+
+        # Group torrents by their new mode so we send one request per mode
+        # instead of one per torrent
+        groups = {True: [], False: []}
+        for t in response.torrents:
+            groups[not t['sequential']].append(t['id'])
+
+        success = False
+        tlist = []
+        msgs = list(response.msgs)
+        errors = list(response.errors)
+        for enabled,ids in groups.items():
+            if not ids:
+                continue
+            subresponse = await self.set_sequential(tuple(ids), enabled, from_piece)
+            msgs.extend(subresponse.msgs)
+            errors.extend(subresponse.errors)
+            if subresponse.success:
+                success = True
+                tlist.extend(subresponse.torrents)
+
+        return Response(success=success, torrents=tuple(tlist), msgs=msgs, errors=errors)
 
     label_manage_mode = Enum('label_manage_mode', 'ADD SET REMOVE')
 

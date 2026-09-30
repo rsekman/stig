@@ -410,6 +410,8 @@ DEPENDENCIES = {
     'creator'                      : ('creator',),
     'magnetlink'                   : ('magnetLink',),
     'count-pieces'                 : ('pieceCount',),
+    'sequential'                   : ('sequential_download',),
+    'sequential-from-piece'        : ('sequential_download_from_piece',),
 
     '%downloaded'                  : ('percentDone',),
     '%uploaded'                    : ('totalSize', 'uploadedEver'),
@@ -477,6 +479,11 @@ class Torrent(base.TorrentBase):
         'ratio'              : _modify_ratio,
         'limit-ratio-mode'   : _limit_ratio_mode,
         'local-path'         : _local_path,
+
+        # Daemons older than 4.1.0 don't know sequential downloading and drop
+        # these fields from 'torrent-get' requests without complaining
+        'sequential'            : lambda raw: raw.get('sequential_download', False),
+        'sequential-from-piece' : lambda raw: raw.get('sequential_download_from_piece', 0),
 
         # Transmission provides rate limits in kilobytes - we want bytes
         'limit-rate-down'    : lambda raw: None if not raw['downloadLimited'] else raw['downloadLimit'] * 1000,
@@ -611,7 +618,8 @@ class TorrentFields(tuple):
                    'pieceCount', 'pieceSize', 'queuePosition', 'rateDownload',
                    'rateUpload', 'recheckProgress', 'secondsDownloading',
                    'secondsSeeding', 'scrapeResponse', 'scrapeURL', 'seedIdleLimit',
-                   'seedIdleMode', 'seedRatioLimit', 'seedRatioMode', 'sizeWhenDone',
+                   'seedIdleMode', 'seedRatioLimit', 'seedRatioMode',
+                   'sequential_download', 'sequential_download_from_piece', 'sizeWhenDone',
                    'startDate', 'status', 'totalSize', 'torrentFile', 'uploadedEver',
                    'uploadLimit', 'uploadLimitMode', 'uploadLimited', 'uploadRatio',
                    'webseedsSendingToUs',

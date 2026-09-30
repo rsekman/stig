@@ -1,15 +1,14 @@
 import os
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
-import asynctest
-from asynctest import CoroutineMock
-from asynctest.mock import MagicMock, call, patch
 from resources_cmd import (CommandTestCase, MockTorrent, mock_get_torrent_sorter,
                            mock_select_torrents)
 
 from stig.client.utils import Response
-from stig.commands.cli import (ListTorrentsCmd, RemoveTorrentsCmd, StartTorrentsCmd,
-                               StopTorrentsCmd, TorrentDetailsCmd, VerifyTorrentsCmd)
+from stig.commands.cli import (ListTorrentsCmd, RemoveTorrentsCmd, SequentialCmd,
+                               StartTorrentsCmd, StopTorrentsCmd, TorrentDetailsCmd,
+                               VerifyTorrentsCmd)
 from stig.completion import Candidates
 from stig.utils.cliparser import Arg, Args
 
@@ -97,7 +96,7 @@ class TestAddTorrentsCmd(CommandTestCase):
             msgs=('Added Some Torrent',),
             torrent=MockTorrent(id=1, name='Some Torrent'))
         process = await self.execute(AddTorrentsCmd, 'some.torrent')
-        self.srvapi.torrent.assert_called(1, 'add', ('some.torrent',), {'stopped': False, 'path': None})
+        self.srvapi.torrent.assert_called(1, 'add', ('some.torrent',), {'stopped': False, 'path': None, 'labels': None, 'sequential': None})
         self.assertEqual(process.success, True)
         self.assert_stdout('add: Added Some Torrent')
         self.assert_stderr()
@@ -110,7 +109,7 @@ class TestAddTorrentsCmd(CommandTestCase):
             errors=('Bogus torrent',),
             torrent=None)
         process = await self.execute(AddTorrentsCmd, 'some.torrent')
-        self.srvapi.torrent.assert_called(1, 'add', ('some.torrent',), {'stopped': False, 'path': None})
+        self.srvapi.torrent.assert_called(1, 'add', ('some.torrent',), {'stopped': False, 'path': None, 'labels': None, 'sequential': None})
         self.assertEqual(process.success, False)
         self.assert_stdout()
         self.assert_stderr('add: Bogus torrent')
@@ -128,8 +127,8 @@ class TestAddTorrentsCmd(CommandTestCase):
         ]
         process = await self.execute(AddTorrentsCmd, 'some.torrent', 'another.torrent')
         self.srvapi.torrent.assert_called(2, 'add',
-                                          ('some.torrent',), {'stopped': False, 'path': None},
-                                          ('another.torrent',), {'stopped': False, 'path': None})
+                                          ('some.torrent',), {'stopped': False, 'path': None, 'labels': None, 'sequential': None},
+                                          ('another.torrent',), {'stopped': False, 'path': None, 'labels': None, 'sequential': None})
         self.assertEqual(process.success, False)
         self.assert_stdout('add: Added Some Torrent')
         self.assert_stderr('add: Something went wrong')
@@ -142,10 +141,80 @@ class TestAddTorrentsCmd(CommandTestCase):
             msgs=('Added Some Torrent',),
             torrent=MockTorrent(id=1, name='Some Torrent'))
         process = await self.execute(AddTorrentsCmd, 'some.torrent', '--stopped')
-        self.srvapi.torrent.assert_called(1, 'add', ('some.torrent',), {'stopped': True, 'path': None})
+        self.srvapi.torrent.assert_called(1, 'add', ('some.torrent',), {'stopped': True, 'path': None, 'labels': None, 'sequential': None})
         self.assertEqual(process.success, True)
         self.assert_stdout('add: Added Some Torrent')
         self.assert_stderr()
+
+    @patch('stig.commands.cli.AddTorrentsCmd.make_path_absolute', side_effect=lambda path: path)
+    async def test_option_labels(self, _mock_make_path_absolute):
+        from stig.commands.cli import AddTorrentsCmd
+        self.srvapi.torrent.response = Response(
+            success=True,
+            msgs=('Added Some Torrent',),
+            torrent=MockTorrent(id=1, name='Some Torrent'))
+        process = await self.execute(AddTorrentsCmd, 'some.torrent', '--labels', 'torrent')
+        self.srvapi.torrent.assert_called(1, 'add', ('some.torrent',), {'stopped': False, 'path': None, 'labels': ['torrent'], 'sequential': None})
+        self.assertEqual(process.success, True)
+        self.assert_stdout('add: Added Some Torrent')
+        self.assert_stderr()
+
+    @patch('stig.commands.cli.AddTorrentsCmd.make_path_absolute', side_effect=lambda path: path)
+    async def test_option_sequential(self, _mock_make_path_absolute):
+        from stig.commands.cli import AddTorrentsCmd
+        self.srvapi.torrent.response = Response(
+            success=True,
+            msgs=('Added Some Torrent',),
+            torrent=MockTorrent(id=1, name='Some Torrent'))
+        process = await self.execute(AddTorrentsCmd, 'some.torrent', '--sequential')
+        self.srvapi.torrent.assert_called(1, 'add', ('some.torrent',),
+                                          {'stopped': False, 'path': None,
+                                           'labels': None, 'sequential': 0})
+        self.assertEqual(process.success, True)
+        self.assert_stderr()
+
+    @patch('stig.commands.cli.AddTorrentsCmd.make_path_absolute', side_effect=lambda path: path)
+    async def test_option_sequential_from_piece_implies_sequential(self, _mock_make_path_absolute):
+        from stig.commands.cli import AddTorrentsCmd
+        self.srvapi.torrent.response = Response(
+            success=True,
+            msgs=('Added Some Torrent',),
+            torrent=MockTorrent(id=1, name='Some Torrent'))
+        process = await self.execute(AddTorrentsCmd, 'some.torrent',
+                                     '--sequential-from-piece', '1200')
+        self.srvapi.torrent.assert_called(1, 'add', ('some.torrent',),
+                                          {'stopped': False, 'path': None,
+                                           'labels': None, 'sequential': 1200})
+        self.assertEqual(process.success, True)
+        self.assert_stderr()
+
+    @patch('stig.commands.cli.AddTorrentsCmd.make_path_absolute', side_effect=lambda path: path)
+    async def test_option_sequential_and_from_piece(self, _mock_make_path_absolute):
+        from stig.commands.cli import AddTorrentsCmd
+        self.srvapi.torrent.response = Response(
+            success=True,
+            msgs=('Added Some Torrent',),
+            torrent=MockTorrent(id=1, name='Some Torrent'))
+        await self.execute(AddTorrentsCmd, 'some.torrent', '-S',
+                           '--sequential-from-piece', '1200')
+        self.srvapi.torrent.assert_called(1, 'add', ('some.torrent',),
+                                          {'stopped': False, 'path': None,
+                                           'labels': None, 'sequential': 1200})
+
+    @patch('stig.commands.cli.AddTorrentsCmd.make_path_absolute', side_effect=lambda path: path)
+    async def test_daemon_does_not_support_sequential(self, _mock_make_path_absolute):
+        from stig.commands.cli import AddTorrentsCmd
+        # The torrent is still added, the piece order just isn't honoured
+        self.srvapi.torrent.response = Response(
+            success=True,
+            msgs=('Added Some Torrent',),
+            errors=('Daemon does not support sequential download (needs Transmission 4.1.0 or newer)',),
+            torrent=MockTorrent(id=1, name='Some Torrent'))
+        process = await self.execute(AddTorrentsCmd, 'some.torrent', '--sequential')
+        self.assertEqual(process.success, True)
+        self.assert_stdout('add: Added Some Torrent')
+        self.assert_stderr(r'^add: Daemon does not support sequential download '
+                           r'\(needs Transmission 4\.1\.0 or newer\)$')
 
     @patch('stig.completion.candidates.fs_path')
     async def test_CLI_completion_candidates_for_posargs(self, mock_fs_path):
@@ -163,7 +232,6 @@ class TestAddTorrentsCmd(CommandTestCase):
 
     @patch('stig.completion.candidates.fs_path')
     @patch.dict(os.environ, HOME='/mock/home/dir')
-    @asynctest.skip('https://github.com/Martiusweb/asynctest/issues/149')
     async def test_TUI_completion_candidates_for_posargs(self, mock_fs_path):
         from stig.commands.tui import AddTorrentsCmd
         mock_fs_path.return_value = Candidates(('a', 'b', 'c'))
@@ -482,7 +550,7 @@ class TestRemoveTorrentsCmd(CommandTestCase):
                  MockTorrent(id=3, name='Torrent3', seeds='53'))
         from stig import objects
         objects.cfg['remove.max-hits'] = 2
-        RemoveTorrentsCmd.show_list_of_hits = CoroutineMock()
+        RemoveTorrentsCmd.show_list_of_hits = AsyncMock()
 
         async def mock_ask_yes_no(self_, *args, yes, no, **kwargs):
             await yes() ; return True  # noqa: E702
@@ -500,7 +568,7 @@ class TestRemoveTorrentsCmd(CommandTestCase):
                  MockTorrent(id=2, name='Torrent2', seeds='52'),
                  MockTorrent(id=3, name='Torrent3', seeds='53'))
         self.cfg['remove.max-hits'] = 2
-        RemoveTorrentsCmd.show_list_of_hits = CoroutineMock()
+        RemoveTorrentsCmd.show_list_of_hits = AsyncMock()
 
         async def mock_ask_yes_no(self_, *args, yes, no, **kwargs):
             await no() ; return False  # noqa: E702
@@ -516,7 +584,7 @@ class TestRemoveTorrentsCmd(CommandTestCase):
                  MockTorrent(id=2, name='Torrent2', seeds='52'),
                  MockTorrent(id=3, name='Torrent3', seeds='53'))
         self.cfg['remove.max-hits'] = -1
-        RemoveTorrentsCmd.show_list_of_hits = CoroutineMock()
+        RemoveTorrentsCmd.show_list_of_hits = AsyncMock()
         await self.do(['all'], tlist=tlist, remove_called=True, success_exp=True,
                       msgs=('Removed Torrent1', 'Removed Torrent2', 'Removed Torrent3'))
         self.assertFalse(RemoveTorrentsCmd.show_list_of_hits.called)
@@ -526,8 +594,8 @@ class TestRemoveTorrentsCmd(CommandTestCase):
                  MockTorrent(id=2, name='Torrent2', seeds='52'),
                  MockTorrent(id=3, name='Torrent3', seeds='53'))
         self.cfg['remove.max-hits'] = 2
-        RemoveTorrentsCmd.show_list_of_hits = CoroutineMock()
-        RemoveTorrentsCmd.ask_yes_no = CoroutineMock()
+        RemoveTorrentsCmd.show_list_of_hits = AsyncMock()
+        RemoveTorrentsCmd.ask_yes_no = AsyncMock()
         await self.do(['all', '--force'], tlist=tlist, remove_called=True, success_exp=True,
                       msgs=('Removed Torrent1', 'Removed Torrent2', 'Removed Torrent3'))
         self.assertFalse(RemoveTorrentsCmd.show_list_of_hits.called)
@@ -554,8 +622,8 @@ class TestRenameCmd(CommandTestCase):
         self.mock_get_relative_path_from_focused = MagicMock()
         self.mock_select_torrents = MagicMock()
         self.mock_srvapi = MagicMock()
-        self.mock_srvapi.torrent.torrents = CoroutineMock()
-        self.mock_srvapi.torrent.rename = CoroutineMock()
+        self.mock_srvapi.torrent.torrents = AsyncMock()
+        self.mock_srvapi.torrent.rename = AsyncMock()
         self.mock_srvapi.interval = 10
         self.patch('stig.objects',
                    srvapi=self.mock_srvapi)
@@ -1039,4 +1107,87 @@ class TestVerifyTorrentsCmd(CommandTestCase):
         await self.assert_completion_candidates(VerifyTorrentsCmd, Args(('verify', 'foo'), curarg_index=1),
                                                 exp_cands=('a', 'b', 'c'))
         await self.assert_completion_candidates(VerifyTorrentsCmd, Args(('verify', 'foo', 'bar'), curarg_index=2),
+                                                exp_cands=('a', 'b', 'c'))
+
+
+class TestSequentialCmd(CommandTestCase):
+    def setUp(self):
+        super().setUp()
+        self.patch('stig.objects',
+                   srvapi=self.srvapi)
+        self.patch('stig.commands.cli.SequentialCmd',
+                   select_torrents=mock_select_torrents)
+
+    async def do(self, args, success_exp, msgs=(), errors=()):
+        self.srvapi.torrent.response = Response(success=success_exp, msgs=msgs, errors=errors)
+
+        process = await self.execute(SequentialCmd, *args)
+        self.assertEqual(process.success, success_exp)
+
+        msgs_exp = tuple(f'^{SequentialCmd.name}: {msg}$' for msg in msgs)
+        errors_exp = tuple(f'^{SequentialCmd.name}: {err}$' for err in errors)
+        self.assert_stdout(*msgs_exp)
+        self.assert_stderr(*errors_exp)
+        return process
+
+    async def test_enable(self):
+        process = await self.do(['debian'], success_exp=True,
+                                msgs=('debian: Sequential download from piece #0',))
+        self.srvapi.torrent.assert_called(1, 'set_sequential',
+                                          (process.mock_tfilter, True, 0), {})
+
+    async def test_enable_from_piece(self):
+        process = await self.do(['debian', '--from-piece', '1200'], success_exp=True,
+                                msgs=('debian: Sequential download from piece #1200',))
+        self.srvapi.torrent.assert_called(1, 'set_sequential',
+                                          (process.mock_tfilter, True, 1200), {})
+
+    async def test_enable_from_piece_short(self):
+        process = await self.do(['debian', '-p', '1200'], success_exp=True)
+        self.srvapi.torrent.assert_called(1, 'set_sequential',
+                                          (process.mock_tfilter, True, 1200), {})
+
+    async def test_off(self):
+        process = await self.do(['debian', '--off'], success_exp=True,
+                                msgs=('debian: Non-sequential download',))
+        self.srvapi.torrent.assert_called(1, 'set_sequential',
+                                          (process.mock_tfilter, False, 0), {})
+
+    async def test_toggle(self):
+        process = await self.do(['debian', '--toggle'], success_exp=True)
+        self.srvapi.torrent.assert_called(1, 'toggle_sequential',
+                                          (process.mock_tfilter, 0), {})
+
+    async def test_toggle_from_piece(self):
+        process = await self.do(['debian', '-t', '-p', '500'], success_exp=True)
+        self.srvapi.torrent.assert_called(1, 'toggle_sequential',
+                                          (process.mock_tfilter, 500), {})
+
+    async def test_off_and_toggle_conflict(self):
+        process = await self.execute(SequentialCmd, 'debian', '--off', '--toggle')
+        self.assertEqual(process.success, False)
+        self.assert_stderr('sequential: Conflicting options: --off, --toggle')
+        self.srvapi.torrent.assert_called(0, 'set_sequential')
+        self.srvapi.torrent.assert_called(0, 'toggle_sequential')
+
+    async def test_off_and_from_piece_conflict(self):
+        process = await self.execute(SequentialCmd, 'debian', '--off', '--from-piece', '5')
+        self.assertEqual(process.success, False)
+        self.assert_stderr('sequential: Conflicting options: --off, --from-piece')
+        self.srvapi.torrent.assert_called(0, 'set_sequential')
+
+    async def test_unsupported_by_daemon(self):
+        self.srvapi.torrent.response = Response(
+            success=False,
+            errors=('Daemon does not support sequential download (needs Transmission 4.1.0 or newer)',))
+        process = await self.execute(SequentialCmd, 'debian')
+        self.assertEqual(process.success, False)
+        self.assert_stdout()
+        self.assert_stderr(r'^sequential: Daemon does not support sequential download '
+                           r'\(needs Transmission 4\.1\.0 or newer\)$')
+
+    @patch('stig.completion.candidates.torrent_filter')
+    async def test_completion_candidates_for_posargs(self, mock_torrent_filter):
+        mock_torrent_filter.return_value = Candidates(('a', 'b', 'c'))
+        await self.assert_completion_candidates(SequentialCmd, Args(('sequential', 'foo'), curarg_index=1),
                                                 exp_cands=('a', 'b', 'c'))

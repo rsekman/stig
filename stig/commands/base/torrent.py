@@ -34,7 +34,8 @@ class AddTorrentsCmdbase(metaclass=CommandMeta):
     usage = ('add [<OPTIONS>] <TORRENT> <TORRENT> <TORRENT> ...',)
     examples = ('add 72d7a3179da3de7a76b98f3782c31843e3f818ee',
                 'add --stopped http://example.org/something.torrent',
-                'add --labels linux,iso https://archlinux.org/releng/releases/2022.04.05/torrent/')
+                'add --labels linux,iso https://archlinux.org/releng/releases/2022.04.05/torrent/',
+                'add --sequential some.torrent')
     argspecs = (
         {'names': ('TORRENT',), 'nargs': '+',
          'description': 'Link or path to torrent file, magnet link or info hash'},
@@ -48,21 +49,38 @@ class AddTorrentsCmdbase(metaclass=CommandMeta):
 
         {'names': ('--labels','-l'),
          'description': 'Comma-separated list of labels'},
+
+        {'names': ('--sequential','-S'), 'action': 'store_true',
+         'description': 'Download pieces in order',
+         'default_description': 'Enabled automatically when --sequential-from-piece is given'},
+
+        {'names': ('--sequential-from-piece',), 'type': int, 'default': None,
+         'metavar': 'PIECE',
+         'description': 'Download sequentially starting at this piece; implies --sequential',
+         'default_description': '0'},
     )
 
-    async def run(self, TORRENT, stopped, path, labels):
+    async def run(self, TORRENT, stopped, path, labels, sequential, sequential_from_piece):
         success = True
         force_torrentlist_update = False
         if path:
             path = objects.pathtranslator.to_remote(path)
         if labels:
             labels = labels.split(',')
+
+        # Naming a piece to start at means sequential downloading is wanted
+        if sequential or sequential_from_piece is not None:
+            from_piece = sequential_from_piece if sequential_from_piece is not None else 0
+        else:
+            from_piece = None
+
         for source in TORRENT:
             source_abs_path = self.make_path_absolute(source)
             response = await self.make_request(objects.srvapi.torrent.add(source_abs_path,
                                                                           stopped=stopped,
                                                                           path=path,
-                                                                          labels=labels))
+                                                                          labels=labels,
+                                                                          sequential=from_piece))
             success = success and response.success
             force_torrentlist_update = force_torrentlist_update or success
 
@@ -557,6 +575,57 @@ class VerifyTorrentsCmdbase(metaclass=CommandMeta):
         else:
             response = await self.make_request(objects.srvapi.torrent.verify(tfilter),
                                                polling_frenzy=True)
+            if not response.success:
+                raise CmdError()
+
+    @classmethod
+    def completion_candidates_posargs(cls, args):
+        """Complete positional arguments"""
+        return candidates.torrent_filter(args.curarg)
+
+
+class SequentialCmdbase(metaclass=CommandMeta):
+    name = 'sequential'
+    aliases = ('seq',)
+    provides = set()
+    category = 'torrent'
+    description = 'Download torrent pieces in order'
+    usage = ('sequential [<OPTIONS>]',
+             'sequential [<OPTIONS>] <TORRENT FILTER> <TORRENT FILTER> ...')
+    examples = ('sequential',
+                'sequential --from-piece 1200 debian',
+                'sequential --off debian')
+    argspecs = (
+        make_X_FILTER_spec('TORRENT', or_focused=True, nargs='*'),
+
+        {'names': ('--from-piece','-p'), 'type': int, 'default': 0,
+         'description': 'Download sequentially starting at this piece'},
+
+        {'names': ('--off','-o'), 'action': 'store_true',
+         'description': 'Download pieces in the usual order again'},
+
+        {'names': ('--toggle','-t'), 'action': 'store_true',
+         'description': 'Download TORRENT sequentially if it isn\'t and vice versa'},
+    )
+
+    async def run(self, TORRENT_FILTER, from_piece, off, toggle):
+        if off and toggle:
+            raise CmdError('Conflicting options: --off, --toggle')
+        elif off and from_piece != 0:
+            raise CmdError('Conflicting options: --off, --from-piece')
+
+        try:
+            tfilter = self.select_torrents(TORRENT_FILTER,
+                                           allow_no_filter=False,
+                                           discover_torrent=True)
+        except ValueError as e:
+            raise CmdError(e)
+        else:
+            if toggle:
+                request = objects.srvapi.torrent.toggle_sequential(tfilter, from_piece)
+            else:
+                request = objects.srvapi.torrent.set_sequential(tfilter, not off, from_piece)
+            response = await self.make_request(request, polling_frenzy=True)
             if not response.success:
                 raise CmdError()
 

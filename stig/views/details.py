@@ -66,6 +66,18 @@ def _private_hr(t):
 def _private_mr(t):
     return 'yes' if t['private'] else 'no'
 
+
+def _sequential_hr(t):
+    if t['sequential']:
+        return f'sequential from piece #{t["sequential-from-piece"]}'
+    else:
+        return 'non-sequential'
+
+def _sequential_mr(t):
+    mode = 'sequential' if t['sequential'] else 'non-sequential'
+    return f'{mode}\t{t["sequential-from-piece"]:d}'
+
+
 def _status_hr(t):
     return ', '.join(t['status'])
 
@@ -225,6 +237,10 @@ SECTIONS = (
              needed_keys=('status',),
              human_readable=_status_hr,
              machine_readable=_status_mr),
+        Item('Mode',
+             needed_keys=('sequential', 'sequential-from-piece'),
+             human_readable=_sequential_hr,
+             machine_readable=_sequential_mr),
         Item('Location',
              needed_keys=('local-path',)),
         Item('Available',
