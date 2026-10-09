@@ -40,6 +40,7 @@ class TorrentBase(abc.Mapping):
         'limit-ratio-mode'             : utils.RatioLimitMode,
         'status'                       : utils.Status,
         'path'                         : utils.SmartCmpPath,
+        'local-path'                   : utils.SmartCmpPath,
         'private'                      : bool,
         'comment'                      : utils.SmartCmpStr,
         'creator'                      : utils.SmartCmpStr,

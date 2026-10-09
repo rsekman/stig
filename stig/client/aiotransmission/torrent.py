@@ -183,7 +183,6 @@ def _local_path(t):
     from ...objects import pathtranslator
     return str(pathtranslator.to_local(t['downloadDir']))
 
-
 def _limit_ratio_mode(t):
     # RPC values for 'seedRatioMode' field:
     # 0 = /* follow the global settings */
@@ -484,6 +483,7 @@ class Torrent(base.TorrentBase):
         # these fields from 'torrent-get' requests without complaining
         'sequential'            : lambda raw: raw.get('sequential_download', False),
         'sequential-from-piece' : lambda raw: raw.get('sequential_download_from_piece', 0),
+        'local-path'         : _local_path,
 
         # Transmission provides rate limits in kilobytes - we want bytes
         'limit-rate-down'    : lambda raw: None if not raw['downloadLimited'] else raw['downloadLimit'] * 1000,
