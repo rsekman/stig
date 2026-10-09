@@ -14,7 +14,7 @@
 import os
 
 from . import ColumnBase, _ensure_hide_unit
-from .. import client
+from ..client.utils import RatioLimitMode
 
 from ..logging import make_logger  # isort:skip
 log = make_logger(__name__)
@@ -360,7 +360,7 @@ class LimitRatio(ColumnBase):
 
     def get_value(self):
         mode = self.data['limit-ratio-mode']
-        if mode == client.utils.RatioLimitMode('default'):
+        if mode == RatioLimitMode('default'):
             from ..objects import remotecfg
             if remotecfg['srv.limit.ratio.enabled']:
                 return remotecfg['srv.limit.ratio']

@@ -13,7 +13,7 @@
 
 from functools import partial
 
-from .. import client
+from ..client.utils import RatioLimitMode
 from ..logging import make_logger  # isort:skip
 log = make_logger(__name__)
 
@@ -132,7 +132,7 @@ _limit_ratio_mr = _limit_ratio_hr
 
 def _limit_ratio_mode_hr(t):
     mode = t['limit-ratio-mode']
-    if mode == client.utils.RatioLimitMode('default'):
+    if mode == RatioLimitMode('default'):
         from ..objects import remotecfg
         return str(remotecfg['srv.limit.ratio.enabled'])
     else:
